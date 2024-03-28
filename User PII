@@ -1,0 +1,44 @@
+
+SELECT
+a.creditcardloanid,
+a.externalid,
+a.userid,
+case when externalid is not null then 'Credit' else null end as ProductType,
+case when externalid is not null then 'Consumer' else null end as TypeOfCard,
+a.createdAt as account_origination_date,
+b.DateCreated as user_created_date,
+b.DateModified,
+b.FirstName,
+b.lastName,
+b.SocialSecurityNumber,
+b.SocialSecurityNumberComputed,
+b.DateOfBirth,
+b.email
+into #Credit_Card_User
+from CreditCardLoans a
+left join [user] b
+on a.userid = b.userid;
+
+SELECT
+a.*,
+b.AddressLine1,
+b.AddressLine2,
+b.State,
+b.Zip,
+b.City
+into #Credit_Card_Address
+from #Credit_Card_User a
+left join [UserAddresses] b
+on a.userid = b.userid
+where [Primary] = 1
+and AddressType = 0;
+
+select
+a.*,
+b.CellNumber,
+b.DateAdded as DateCellAdded
+into #Credit_Card_Cell
+from #Credit_Card_Address a
+left join [UserCellPhones] b
+on a.userid = b.userid
+where IsPrimary = 1;
