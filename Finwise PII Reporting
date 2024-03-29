@@ -4,9 +4,9 @@ drop table #Credit_Card_Cell
 
 
 SELECT
-a.creditcardloanid,
+a.creditcardloanid as EmpowerCreditCardLoanId,
 a.externalid,
-a.userid,
+a.userid as EmpowerUserId,
 case when externalid is not null then 'Credit' else null end as ProductType,
 case when externalid is not null then 'Consumer' else null end as TypeOfCard,
 a.createdAt as AccountOriginationDate,
@@ -35,7 +35,7 @@ b.City
 into #Credit_Card_Address
 from #Credit_Card_User a
 left join [UserAddresses] b
-on a.userid = b.userid
+on a.EmpowerUserId = b.userid
 where [Primary] = 1
 and AddressType = 0;
 
@@ -46,7 +46,7 @@ b.DateAdded as DateCellAdded
 into #Credit_Card_Cell
 from #Credit_Card_Address a
 left join [UserCellPhones] b
-on a.userid = b.userid
+on a.EmpowerUserId = b.userid
 where IsPrimary = 1;
 
 
@@ -132,3 +132,21 @@ on m.UserCreditVariableId = a.UserCreditVariableId
 left join UserCreditSummary s 
 on a.UserCreditSummaryId = s.UserCreditSummaryId;
 
+select * from  #app_credit_score 
+
+
+--------------------------------Finwise Reports--------------------------------
+--Accounts
+select * from  #Credit_Card_Cell;
+
+--KYC, Fraud Risk Scores, Application Credit Score
+SELECT top 100
+userid as EmpowerUserId,
+createdat as ApplicationDate,
+KYCVendor,
+KYCIDNumber,
+case when status = 0 then 'Pass' else null end as KYC_status, --get remaining enum values 
+PhoneRiskScore,
+EmailRiskScore,
+AppFicoScore
+from #app_credit_score; 
