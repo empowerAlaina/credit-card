@@ -1,1 +1,134 @@
+drop table #Credit_Card_User
+drop table #Credit_Card_Address
+drop table #Credit_Card_Cell
+
+
+SELECT
+a.creditcardloanid,
+a.externalid,
+a.userid,
+case when externalid is not null then 'Credit' else null end as ProductType,
+case when externalid is not null then 'Consumer' else null end as TypeOfCard,
+a.createdAt as AccountOriginationDate,
+b.DateCreated as UserCreatedDate,
+case when b.DateCreated is not null then 'Y' else null end as eSignIndicator,
+b.DateCreated as esignConsentDate,
+b.DateModified,
+b.FirstName,
+b.lastName,
+b.SocialSecurityNumber,
+b.SocialSecurityNumberComputed,
+b.DateOfBirth,
+b.email
+into #Credit_Card_User
+from CreditCardLoans a
+left join [user] b
+on a.userid = b.userid;
+
+SELECT
+a.*,
+b.AddressLine1,
+b.AddressLine2,
+b.State,
+b.Zip,
+b.City
+into #Credit_Card_Address
+from #Credit_Card_User a
+left join [UserAddresses] b
+on a.userid = b.userid
+where [Primary] = 1
+and AddressType = 0;
+
+select
+a.*,
+b.CellNumber,
+b.DateAdded as DateCellAdded
+into #Credit_Card_Cell
+from #Credit_Card_Address a
+left join [UserCellPhones] b
+on a.userid = b.userid
+where IsPrimary = 1;
+
+
+
+
+--KYC
+
+select 
+a.*,
+b.userloanapplicationid,
+b.STATUS as app_status,
+b.createdat as application_date
+from #Credit_Card_Cell a
+left join  [UserLoanApplications] b
+on a.userid = b.userid
+and account_origination_date = ;
+
+
+
+select 
+a.userloanapplicationid,
+a.UserCreditModelId,
+a.STATUS as AppStatus,
+a.createdat,
+a.userid,
+b.userkycid,
+b.userkycuserloanapplicationid,
+c.createdatutc,
+c.status, -- this is the result. need to translate enum
+case when b.userkycid is not null then 'Socure' else null end as KYCVendor,
+c.SocureReferenceId as KYCIDNumber,
+c.UserKycActionResultId,
+row_number() over(partition by c.userkycid order by c.createdatutc desc) as socure_rank
+into #kyc
+from [UserLoanApplications] a
+left join [UserKycUserLoanApplication] b
+on a.userloanapplicationid = b.userloanapplicationid
+left join [UserKycActionResults] c
+on b.userkycid = c.userkycid
+where createdAt >= '2024-03-26'
+and a.STATUS in (3,4); --4 is accepted
+
+
+
+SELECT
+a.*,
+b.score as PhoneRiskScore
+into #phone_risk_score
+from #kyc a
+left join [UserKycActionResultScore] b
+on a.UserKycActionResultId = b.UserKycActionResultId
+where module = 'PhoneRisk'
+and a.socure_rank = 1;
+
+SELECT
+a.*,
+b.score as EmailRiskScore
+into #email_risk_score
+from #phone_risk_score a
+left join [UserKycActionResultScore] b
+on a.UserKycActionResultId = b.UserKycActionResultId
+where module = 'EmailRisk';
+
+
+---App Credit Scores
+select 
+a.*,
+b.usercreditreportid,
+b.createdat
+from #email_risk_score a
+left join [UserCreditReports] b
+on a.userid = b.userid;
+
+select 
+l.*,
+s.ficoscore as AppFicoScore
+into #app_credit_score 
+from #email_risk_score l
+left join UserCreditModel m
+on l.UserCreditModelId = m.UserCreditModelId
+left join UserCreditVariableAries a
+on m.UserCreditVariableId = a.UserCreditVariableId
+left join UserCreditSummary s 
+on a.UserCreditSummaryId = s.UserCreditSummaryId;
 
