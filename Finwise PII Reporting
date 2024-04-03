@@ -49,8 +49,18 @@ left join [UserCellPhones] b
 on a.EmpowerUserId = b.userid
 where IsPrimary = 1;
 
+--CHA
+select  * from creditcardloandisclosures order by userid
+select count(*), count(distinct document) from creditcardloandisclosures order by userid
 
+select a.*,
+b.CreditCardLoanDisclosureId as CardholderAgreementID -- need to figure out why there are duplicates and eliminate them 
+into #CHA
+from #Credit_Card_Cell a
+left join creditcardloandisclosures b
+on a.EmpowerUserId = b.userid;
 
+select * from #CHA order by EmpowerUserId
 
 --KYC
 
@@ -64,13 +74,21 @@ left join  [UserLoanApplications] b
 on a.userid = b.userid
 and account_origination_date = ;
 
-
+drop table #kyc;
+drop table #phone_risk_score;
+drop table #email_risk_score;
+drop table #app_credit_score;
+drop table #app_device_info;
+drop table #app_device_info3;
+drop table #app_device_info4;
+drop table  #app_device;
 
 select 
 a.userloanapplicationid,
 a.UserCreditModelId,
 a.STATUS as AppStatus,
 a.createdat,
+convert(varchar(10), a.createdat) as ApplicationDate,
 a.userid,
 b.userkycid,
 b.userkycuserloanapplicationid,
@@ -113,14 +131,6 @@ where module = 'EmailRisk';
 
 ---App Credit Scores
 select 
-a.*,
-b.usercreditreportid,
-b.createdat
-from #email_risk_score a
-left join [UserCreditReports] b
-on a.userid = b.userid;
-
-select 
 l.*,
 s.ficoscore as AppFicoScore
 into #app_credit_score 
@@ -132,7 +142,80 @@ on m.UserCreditVariableId = a.UserCreditVariableId
 left join UserCreditSummary s 
 on a.UserCreditSummaryId = s.UserCreditSummaryId;
 
-select * from  #app_credit_score 
+--Device ID and IP Address
+select a.*,  
+b.DeviceId,
+b.createdatutc as deviceCreatedAtUtc,
+b.lastmodifiedatutc,
+b.ip,
+b.timestamputc,
+convert(varchar(10), b.timestamputc) as deviceDate
+into #app_device_info
+from #app_credit_score a
+left join [UserDeviceInformationData] b
+on a.userid = b.userid
+where a.createdat >= timestamputc; --filtering to device information logged before the application, assuming the session logging starts at session initiation 
+
+select a.*,
+row_number() over(partition by userloanapplicationid order by timestamputc desc) as timestamp_rank --taking device info logged closest to application
+into #app_device_info3
+from #app_device_info a;
+
+select a.*
+into #app_device_info4 
+from #app_device_info3 a
+where timestamp_rank = 1;
+
+select a.*,
+b.ip as applicationIP,
+b.DeviceId as ApplicationDeviceID
+into #app_device
+from #app_credit_score a
+left join #app_device_info4 b
+on a.userloanapplicationid = b.userloanapplicationid;
+
+
+
+--------------------------------Ongoing update data--------------------------------
+
+
+drop table #Last_IP
+drop table #Last_Device
+drop table #last_access_data
+
+--Last IP Address and Access Date
+SELECT
+userid as EmpowerUserId,
+DateAccessed as LastAccessDate,
+IpAddress as LastAccessIpAddress,
+row_number() over(partition by userid order by DateAccessed desc) as timestamp_rank --most recent 
+into #Last_IP
+from [AccessLog]
+where userid in (select EmpowerUserId from #CHA)
+and DateAccessed >= '2023-12-01';
+
+
+--Last Access Device ID
+select a.*,
+b.DeviceID as LastAccessDeviceID,
+b.timestampUtc,
+row_number() over(partition by userid order by timestamputc desc) as timestamp_rank2 --most recent 
+into #last_device
+from #Last_IP a
+left join [UserDeviceInformationData] b
+on a.EmpowerUserId = b.UserId
+where timestamp_rank = 1
+and timestamputc >= '2023-11-01';
+
+select 
+EmpowerUserId,
+LastAccessDate,
+LastAccessIpAddress,
+LastAccessDeviceID
+into #last_access_data
+from #last_device
+where timestamp_rank2 = 1;
+
 
 
 --------------------------------Finwise Reports--------------------------------
@@ -142,11 +225,25 @@ select * from  #Credit_Card_Cell;
 --KYC, Fraud Risk Scores, Application Credit Score
 SELECT top 100
 userid as EmpowerUserId,
-createdat as ApplicationDate,
+ApplicationDate,
 KYCVendor,
 KYCIDNumber,
 case when status = 0 then 'Pass' else null end as KYC_status, --get remaining enum values 
 PhoneRiskScore,
 EmailRiskScore,
-AppFicoScore
+AppFicoScore,
+applicationIP,
+ApplicationDeviceID
 from #app_credit_score; 
+
+
+
+
+
+--Report List:
+--1. Account origination data - #Credit_Card_Cell joined to #app_credit_score. For Beta 1, will provide daily until we have booked 300 accounts
+--2. Monthly update on existing CC users -- last credit score, email address, street address, phone, last account access date, device ID at last login, IP address at last login, account close flag, account close timestamp 
+--option A: provide as two separate files. option B: provide as 1 file where the first columns would always be unchanged and then i would join and overwrite the second set of columns to the most recent data
+
+--other notes: we don't store SMS opt in in our main SQL DB. We can provide it separately and work towards pulling it into the main DB so we can automatically include this data in the future. follow up with Alex Darrow 
+--it appears that about 0.25% of thrive applicants do not have any device data logged with their userids. need to figure out why 
