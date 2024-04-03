@@ -142,6 +142,7 @@ on m.UserCreditVariableId = a.UserCreditVariableId
 left join UserCreditSummary s 
 on a.UserCreditSummaryId = s.UserCreditSummaryId;
 
+
 --Device ID and IP Address
 select a.*,  
 b.DeviceId,
@@ -182,6 +183,7 @@ on a.userloanapplicationid = b.userloanapplicationid;
 drop table #Last_IP
 drop table #Last_Device
 drop table #last_access_data
+drop table #credit_score
 
 --Last IP Address and Access Date
 SELECT
@@ -216,7 +218,38 @@ into #last_access_data
 from #last_device
 where timestamp_rank2 = 1;
 
+--Last credit score
+--- Credit scores
+select top 100 * from userCreditScoreOffers ; -- anyone that has been whitelisted will appear on this list
+select top 100  * from userCreditScoreProfiles; -- a per user table that has userCreditScoreProfileID + UserId
+select * from userCreditScoreEnrollments ; -- has the enrollment specific info (enrollment key with TU, whether cancelled)
+select * from userCreditScoreProfileActions ; -- action taken, status of enrollment, any errors that may have occurred 
+select top 100 * from userCreditScoreReports ; -- credit score presented to user + inquiry date
+select * from userCreditScoreReportToFactors; -- maps to CreditScoreFactors
+select * from  CreditScoreFactors; -- factors we get with score, what is presented to the user, whether it should be displayed, what priority it should be displayed
 
+select top 100 * from  UserCreditModel where userid = 8091885
+
+select a.*,
+b.usercreditscoreprofileid
+into #credit_score_profile 
+from  #last_access_data a 
+left join userCreditScoreProfiles b
+on a.EmpowerUserId = b.userid;
+
+
+select a.*,
+b.score as LastScore,
+b.inquirydate,
+b.usercreditscorereportid,
+b.createdatutc,
+row_number() over(partition by b.usercreditscoreprofileid order by inquirydate desc) as timestamp_rank --most recent 
+into #credit_score
+from #credit_score_profile a 
+left join userCreditScoreReports b 
+on a.usercreditscoreprofileid = b.usercreditscoreprofileid;
+
+select * from #credit_score
 
 --------------------------------Finwise Reports--------------------------------
 --Accounts
