@@ -219,17 +219,6 @@ from #last_device
 where timestamp_rank2 = 1;
 
 --Last credit score
---- Credit scores
-select top 100 * from userCreditScoreOffers ; -- anyone that has been whitelisted will appear on this list
-select top 100  * from userCreditScoreProfiles; -- a per user table that has userCreditScoreProfileID + UserId
-select * from userCreditScoreEnrollments ; -- has the enrollment specific info (enrollment key with TU, whether cancelled)
-select * from userCreditScoreProfileActions ; -- action taken, status of enrollment, any errors that may have occurred 
-select top 100 * from userCreditScoreReports ; -- credit score presented to user + inquiry date
-select * from userCreditScoreReportToFactors; -- maps to CreditScoreFactors
-select * from  CreditScoreFactors; -- factors we get with score, what is presented to the user, whether it should be displayed, what priority it should be displayed
-
-select top 100 * from  UserCreditModel where userid = 8091885
-
 select a.*,
 b.usercreditscoreprofileid
 into #credit_score_profile 
@@ -249,7 +238,55 @@ from #credit_score_profile a
 left join userCreditScoreReports b 
 on a.usercreditscoreprofileid = b.usercreditscoreprofileid;
 
-select * from #credit_score
+
+select a.*
+into #credit_score2
+from #credit_score a
+where timestamp_rank = 1
+and LastScore is not null;
+
+select a.*,
+b.LastScore,
+b.createdatutc as LastScoreDate
+into #Last_Score
+from #credit_score_profile a
+left join #credit_score2 b
+on a.EmpowerUserId = b.EmpowerUserId;
+
+--Updated contact info 
+select a.*, 
+b.email as LastEmail
+into #Last_email 
+from #Last_Score a
+left join [user] b
+on a.EmpowerUserId = b.userid;
+
+
+SELECT
+a.*,
+b.AddressLine1 as LastAddressLine1,
+b.AddressLine2 as LastAddressLine2,
+b.State as LastState,
+b.Zip as LastZip,
+b.City as LastCity
+into #Last_Address
+from #Last_email a
+left join [UserAddresses] b
+on a.EmpowerUserId = b.userid
+where [Primary] = 1
+and AddressType = 0;
+
+select
+a.*,
+b.CellNumber as LastCellNumber
+into #Last_Cell
+from #Last_Address a
+left join [UserCellPhones] b
+on a.EmpowerUserId = b.userid
+where IsPrimary = 1;
+
+--Close account data
+
 
 --------------------------------Finwise Reports--------------------------------
 --Accounts
