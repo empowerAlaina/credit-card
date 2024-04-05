@@ -104,7 +104,7 @@ left join [UserKycUserLoanApplication] b
 on a.userloanapplicationid = b.userloanapplicationid
 left join [UserKycActionResults] c
 on b.userkycid = c.userkycid
-where createdAt >= '2024-03-26'
+where createdAt >= '2024-04-01'
 and a.STATUS in (3,4); --4 is accepted
 
 
@@ -180,10 +180,15 @@ on a.userloanapplicationid = b.userloanapplicationid;
 --------------------------------Ongoing update data--------------------------------
 
 
-drop table #Last_IP
-drop table #Last_Device
-drop table #last_access_data
-drop table #credit_score
+drop table #Last_IP;
+drop table #Last_Device;
+drop table #last_access_data;
+drop table #credit_score_profile;
+drop table #credit_score;
+drop table #credit_score2;
+drop table #Last_email;
+drop table #Last_address;
+drop table #Last_cell;
 
 --Last IP Address and Access Date
 SELECT
@@ -286,6 +291,17 @@ on a.EmpowerUserId = b.userid
 where IsPrimary = 1;
 
 --Close account data
+--Need to join at account level once we start to have more than one account
+select a.*,
+b.CloseReason,
+b.ClosedAt,
+b.ChargeOffStatus
+into #close_account_status
+from #Last_Address a
+left join CreditCardLoans b
+on a.EmpowerUserId = b.userid; 
+
+
 
 
 --------------------------------Finwise Reports--------------------------------
@@ -304,11 +320,27 @@ EmailRiskScore,
 AppFicoScore,
 applicationIP,
 ApplicationDeviceID
-from #app_credit_score; 
+from #app_device; 
 
 
-
-
+--Updated data
+SELECT
+EmpowerUserId,
+LastAccessDate,
+LastAccessIpAddress,
+LastAccessDeviceID,
+LastScore,
+LastScoreDate,
+LastEmail,
+LastAddressLine1,
+LastAddressLine2,
+LastState,
+LastZip,
+LastCity,
+CloseReason,
+ClosedAt,
+ChargeOffStatus
+from #close_account_status;
 
 --Report List:
 --1. Account origination data - #Credit_Card_Cell joined to #app_credit_score. For Beta 1, will provide daily until we have booked 300 accounts
@@ -317,3 +349,5 @@ from #app_credit_score;
 
 --other notes: we don't store SMS opt in in our main SQL DB. We can provide it separately and work towards pulling it into the main DB so we can automatically include this data in the future. follow up with Alex Darrow 
 --it appears that about 0.25% of thrive applicants do not have any device data logged with their userids. need to figure out why 
+
+
