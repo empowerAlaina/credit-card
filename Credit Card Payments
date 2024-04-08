@@ -1,0 +1,28 @@
+matillion.peach_loan_purchases 
+
+select * from matillion.peach_loans where loan_type_id = 85
+
+select a.external_id, b.*
+from matillion.peach_loans a
+left join matillion.peach_loan_purchases b
+on a.line_of_credit_id = b.line_of_credit_id
+where loan_type_id = 85
+
+select top 100 * from matillion.peach_transactions where external_id like 'cc-%'
+select top 100 * from matillion.peach_transactions where id = 6496605
+
+select a.external_id, b.*
+from matillion.peach_loans a
+left join matillion.peach_transactions b
+on a.line_of_credit_id = b.line_of_credit_id
+where loan_type_id = 85
+
+select 
+a.id,
+a.line_of_credit_id,
+a.external_id,
+b.*
+from matillion.peach_loans a
+left join matillion.peach_transactions b
+on a.id=b.id
+where loan_type_id = '85'
