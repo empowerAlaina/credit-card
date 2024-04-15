@@ -1,0 +1,115 @@
+
+
+--Empower users who have been with Empower for >= 6 months and whose sub is currently active
+select
+a.userid,
+a.datecreated as user_created_date,
+b.usersubscriptionid,
+b.startDate as sub_start_date,
+b.endDate as sub_end_date,
+case when subscriptionStatus = 0 then 'None'
+when subscriptionStatus = 1 then 'Active'
+when subscriptionStatus = 2 then 'Overdue'
+when subscriptionStatus = 3 then 'Canceled'
+when subscriptionStatus = 4 then 'Delinquent'
+when subscriptionStatus = 5 then 'Closed by User'
+when subscriptionStatus = 6 then 'Closed by Empower'
+when subscriptionStatus = 7 then 'Pending Payment'
+when subscriptionStatus = 8 then 'Trial Autoclose'
+when subscriptionStatus = 9 then 'Subscription Paused'
+end as current_subscriptionStatus
+into #Empower_Subs
+from matillion.prod_user A
+left join matillion.prod_usersubscription b
+on a.userid = b.userid
+where DATEDIFF(day,datecreated,GETDATE()) >= 180
+and DATEDIFF(day,startDate,GETDATE()) >= 180
+and subscriptionStatus = 1; --active sub only
+
+select count(*) from  #Empower_Subs;
+select count(*) from  #not_thrive_users;
+select top 100 * from #Empower_Subs;
+
+select top 100  * from matillion.prod_loans
+
+
+--Has never had a Thrive account
+select
+a.*
+into #not_thrive_users 
+from #Empower_Subs a
+where userid not in (select userid from matillion.prod_loans); --never had a Thrive account
+
+
+drop table #cp_pass;
+
+--Passes CP
+select 
+*
+into #AriesPQPasses
+FROM (select 
+a.usercreditvariableid,
+a.dategenerated,
+a.mlmodelscore, 
+b.TotalHistoryInDays,
+b.PckAcctCurrBal,
+b.userid,
+row_number()over(partition by userid order by dategenerated desc) as dup_num
+from matillion.prod_UserCreditVariableAriesPrequal A
+left join matillion.prod_usercreditvariableberyllium b
+on a.usercreditvariableid = b.usercreditvariableid
+where dategenerated >= '2024-04-01'
+and a.mlmodelscore <=0.1
+) a 
+where dup_num = 1
+;
+
+
+select 
+usercreditvariableid,
+dategenerated,
+mlmodelscore, 
+TotalHistoryInDays,
+PckAcctCurrBal,
+b.*
+into #AriesPQPasses2
+from #AriesPQPasses a
+left join (
+select 
+userid,
+accountid,
+paycheckmonthlydollaramount,
+paycheckidentificationmethod,
+case when paycheckidentificationmethod = 1 then 'BF pass'
+when paycheckidentificationmethod = 1 then 'BF pass'
+when paycheckidentificationmethod = 7 then 'Variable Income'
+else 'minimum income' end as paycheckid_text,
+createdat,
+row_number()over(PARTITION by userid order by createdat desc) as most_recent_flag
+from matillion.prod_userpaychecks
+) b
+on a.userid = b.userid
+where b.most_recent_flag = 1;
+
+select top 100 * from matillion.prod_userpaychecks
+
+select * from #AriesPQPasses2
+
+select 
+a.*,
+b.mlmodelscore,
+b.PckAcctCurrBal,
+b.paycheckmonthlydollaramount,
+b.paycheckid_text
+into #cp_pass
+from #not_thrive_users a
+left join #AriesPQPasses2 b
+on a.userid = b.userid
+where paycheckmonthlydollaramount >= 1000
+and paycheckid_text = 'BF pass'
+and PckAcctCurrBal >= -350
+and TotalHistoryInDays >= 30;
+
+select count(*) from  #cp_pass;
+
+select * from dbt.creditcard_payment_core
