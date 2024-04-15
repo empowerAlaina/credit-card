@@ -1,0 +1,31 @@
+select * from dbt.creditcard_payment_core
+
+--NABs
+select 
+convert(varchar(10), originated_pst, 23) as open_date,
+count(distinct account_id_prod) as num_accts
+from dbt.creditcard_core
+group by convert(varchar(10), originated_pst, 23);
+
+--PVOL
+select 
+convert(varchar(10), created_pst, 23) as settle_date,
+point_of_sale_type,
+sum(amount_usd) as pvol,
+count(*) as num_trxn
+from dbt.creditcard_purchase_core 
+where purch_status = 'Settled'
+group by convert(varchar(10), created_pst, 23), point_of_sale_type
+;
+
+
+--Payments
+select 
+convert(varchar(10), effective_date, 23) as payment_date,
+sum(amount_usd) as payvol,
+count(*) as num_trxn
+from dbt.creditcard_payment_core
+where status_peach = 'Succeeded'
+group by convert(varchar(10), effective_date, 23)
+;
+
