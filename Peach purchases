@@ -1,0 +1,10 @@
+
+SELECT
+a.id,
+a.external_id,
+b.*
+from matillion.peach_loans a
+left join matillion.peach_loan_purchases b
+on a.line_of_credit_id = b.line_of_credit_id
+where loan_type_id = 85
+and a.type = 'Draw'
