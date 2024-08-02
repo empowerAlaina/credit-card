@@ -1,10 +1,17 @@
 
 SELECT
-a.id,
-a.external_id,
-b.*
+a.id as peach_id,
+a.external_id as empower_cc_id_draw,
+b.created_at as purchase_created_at,
+b.status as purchase_status,
+b.original_amount,
+b.merchant_name,
+b.authorized_at,
+b.settled_at
+into #cc_purchases
 from matillion.peach_loans a
 left join matillion.peach_loan_purchases b
-on a.line_of_credit_id = b.line_of_credit_id
+on a.id = b.line_of_credit_id
 where loan_type_id = 85
-and a.type = 'Draw'
+and authorized_at between '2024-07-01' and '2024-07-31' 
+and b.status in ('Settled');
