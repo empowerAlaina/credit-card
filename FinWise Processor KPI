@@ -1,0 +1,22 @@
+select account_id_peach
+        , cast(created_utc as date) as date
+        , a.purch_status
+        , case when a.purch_status = 'Authorized' then 1 else 0 end as Authorized
+        , case when a.purch_status = 'Declined' then 1 else 0 end as Declined
+        , case when a.purch_status = 'Settled' then 1 else 0 end as Settled
+        , a.decline_reason
+        , left(substring(decline_reason,CHARINDEX('mainExternal',decline_reason)+ 26,1000),len(substring(decline_reason,CHARINDEX('mainExternal',decline_reason)+ 26,1000))-2) as decline_reason_clean
+        , a.amount_usd
+        , a.point_of_sale_type
+        , a.merchant_category_code
+    into #purchases
+    from dbt.creditcard_purchase_core a
+    where created_pst between '2024-07-01' and '2024-08-01';
+
+
+SELECT * from #purchases;
+
+select count(*) as num_trxns from #purchases;
+select count(*) as num_trxns from #purchases where (Authorized = 1 or Settled = 1);
+select count(*) as num_trxns from #purchases where Declined = 1;
+select decline_reason_clean, count(*) as num_trxns from #purchases where Declined = 1 group by decline_reason_clean;
