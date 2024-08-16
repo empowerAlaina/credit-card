@@ -1,0 +1,71 @@
+
+--PAYMENTS
+SELECT
+a.id as peach_id,
+a.external_id as empower_cc_id,
+b.id as payment_id,
+b.created_at as payment_created_at,
+b.effective_date as payment_effective_date,
+b.initiated_at as payment_initiated_at,
+b.pending_at as payment_pending_at,
+b.succeeded_at as payment_succeed_at,
+b.failed_at as payment_failed_at,
+b.canceled_at as payment_canceled_at,
+b.transaction_type,
+b.payment_type,
+b.payment_reason,
+b.credit_type,
+b.credit_sponsor,
+b.scheduled_amount,
+b.actual_amount,
+b.status as payment_status,
+b.display_date,
+b.applied_at
+into #cc_payments
+from matillion.peach_loans a
+left join matillion.peach_transactions b
+on a.id = b.loan_id
+where loan_type_id = 85
+and pending_at between '2024-07-01' and '2024-08-16'; --statement date
+
+
+
+select top 100 * from matillion.peach_transactions
+
+SELECT a.*,
+datediff(hour,payment_pending_at,payment_succeed_at) as processing_time
+into #cc_processing_time
+from #cc_payments a
+where payment_succeed_at is not null;
+
+select * from #cc_processing_time
+
+
+
+select 
+--avg(processing_time),
+case when processing_time between 0 and 23 then '<1d'
+     when processing_time between 24 and 47 then '1-2d'
+     when processing_time between 48 and 71 then '2-3d'
+     when processing_time between 72 and 95 then '3-4d'
+     when processing_time between 96 and 119 then '4-5d'
+     when processing_time between 120 and 143 then '5-6d'
+     when processing_time between 144 and 167 then '6-7d'
+     when processing_time between 168 and 191 then '7-8d'
+     when processing_time between 192 and 215 then '8-9d'
+     when processing_time between 216 and 239 then '9-10d'
+     when processing_time >= 240 then '10+d' else null end as processing_time_distro,
+count(distinct payment_id) as num_payments
+from #cc_processing_time
+group by --avg(processing_time),
+case when processing_time between 0 and 23 then '<1d'
+     when processing_time between 24 and 47 then '1-2d'
+     when processing_time between 48 and 71 then '2-3d'
+     when processing_time between 72 and 95 then '3-4d'
+     when processing_time between 96 and 119 then '4-5d'
+     when processing_time between 120 and 143 then '5-6d'
+     when processing_time between 144 and 167 then '6-7d'
+     when processing_time between 168 and 191 then '7-8d'
+     when processing_time between 192 and 215 then '8-9d'
+     when processing_time between 216 and 239 then '9-10d'
+     when processing_time >= 240 then '10+d' else null end;
