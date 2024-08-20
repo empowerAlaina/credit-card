@@ -1,4 +1,4 @@
-
+---THIS JOIN IS INCORRECT
 --PAYMENTS
 SELECT
 a.id as peach_id,
@@ -69,3 +69,33 @@ case when processing_time between 0 and 23 then '<1d'
      when processing_time between 192 and 215 then '8-9d'
      when processing_time between 216 and 239 then '9-10d'
      when processing_time >= 240 then '10+d' else null end;
+
+
+---PULL FROM DBT - EXCLUDES FAILED AND CANCELED
+select 
+--avg(processing_time),
+case when datediff(hour,pending_at,succeeded_at) between 0 and 23 then '<1d'
+     when datediff(hour,pending_at,succeeded_at) between 24 and 47 then '1-2d'
+     when datediff(hour,pending_at,succeeded_at) between 48 and 71 then '2-3d'
+     when datediff(hour,pending_at,succeeded_at) between 72 and 95 then '3-4d'
+     when datediff(hour,pending_at,succeeded_at) between 96 and 119 then '4-5d'
+     when datediff(hour,pending_at,succeeded_at) between 120 and 143 then '5-6d'
+     when datediff(hour,pending_at,succeeded_at) between 144 and 167 then '6-7d'
+     when datediff(hour,pending_at,succeeded_at) between 168 and 191 then '7-8d'
+     when datediff(hour,pending_at,succeeded_at) between 192 and 215 then '8-9d'
+     when datediff(hour,pending_at,succeeded_at) between 216 and 239 then '9-10d'
+     when datediff(hour,pending_at,succeeded_at) >= 240 then '10+d' else null end as processing_time_distro,
+count(distinct payment_id_peach) as num_payments
+from dbt.creditcard_payment_core
+group by --avg(processing_time),
+case when datediff(hour,pending_at,succeeded_at) between 0 and 23 then '<1d'
+     when datediff(hour,pending_at,succeeded_at) between 24 and 47 then '1-2d'
+     when datediff(hour,pending_at,succeeded_at) between 48 and 71 then '2-3d'
+     when datediff(hour,pending_at,succeeded_at) between 72 and 95 then '3-4d'
+     when datediff(hour,pending_at,succeeded_at) between 96 and 119 then '4-5d'
+     when datediff(hour,pending_at,succeeded_at) between 120 and 143 then '5-6d'
+     when datediff(hour,pending_at,succeeded_at) between 144 and 167 then '6-7d'
+     when datediff(hour,pending_at,succeeded_at) between 168 and 191 then '7-8d'
+     when datediff(hour,pending_at,succeeded_at) between 192 and 215 then '8-9d'
+     when datediff(hour,pending_at,succeeded_at) between 216 and 239 then '9-10d'
+     when datediff(hour,pending_at,succeeded_at) >= 240 then '10+d' else null end;
