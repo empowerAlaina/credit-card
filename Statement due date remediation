@@ -1,0 +1,23 @@
+select 
+account_id_peach,
+date as snap_date,
+status_text,
+is_overdue,
+overdue_number_days,
+net_balance_total_usd,
+net_balance_principal_usd,
+net_balance_interest_usd,
+net_balance_fees_usd,
+paid_total_usd,
+paid_principal_usd,
+paid_interest_usd,
+paid_fees_usd,
+interest_accrued_usd,
+last_successful_payment,
+last_successful_payment_effective_date,
+upcoming_due_date
+---into #overdueAccounts
+from dbt.creditcard_snap_daily 
+where date = '2024-08-22'
+and status_text = 'Active'
+and overdue_number_days = 1;
