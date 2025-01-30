@@ -18,87 +18,82 @@ drop table  #app_device;
 
 
 SELECT
-a.creditcardloanid as EmpowerCreditCardLoanId,
-a.externalid,
-a.userid as EmpowerUserId,
-case when externalid is not null then 'Credit' else null end as ProductType,
-case when externalid is not null then 'Consumer' else null end as TypeOfCard,
-a.createdAt as AccountOriginationDate,
-b.DateCreated as UserCreatedDate,
-case when b.DateCreated is not null then 'Y' else null end as eSignIndicator,
-b.DateCreated as esignConsentDate,
-b.DateModified,
-b.FirstName,
-b.lastName,
-b.SocialSecurityNumber,
-b.SocialSecurityNumberComputed,
-b.DateOfBirth,
-b.email
+    a.creditcardloanid as EmpowerCreditCardLoanId,
+    a.externalid,
+    a.userid as EmpowerUserId,
+    case when externalid is not null then 'Credit' else null end as ProductType,
+    case when externalid is not null then 'Consumer' else null end as TypeOfCard,
+    a.createdAt as AccountOriginationDate,
+    b.DateCreated as UserCreatedDate,
+    case when b.DateCreated is not null then 'Y' else null end as eSignIndicator,
+    b.DateCreated as esignConsentDate,
+    b.DateModified,
+    b.FirstName,
+    b.lastName,
+    b.SocialSecurityNumber,
+    b.SocialSecurityNumberComputed,
+    b.DateOfBirth,
+    b.email
 into #Credit_Card_User
 from CreditCardLoans a
-left join [user] b
-on a.userid = b.userid
+         left join [user] b
+                   on a.userid = b.userid
 where externalid is not null --excludes declined accounts
-and createdAt > '2024-07-01'; --excludes test accounts
-
-
+  and createdAt > '2024-07-01'; --excludes test accounts
 
 SELECT
-a.*,
-b.AddressLine1,
-b.AddressLine2,
-b.State,
-b.Zip,
-b.City
+    a.*,
+    b.AddressLine1,
+    b.AddressLine2,
+    b.State,
+    b.Zip,
+    b.City
 into #Credit_Card_Address
 from #Credit_Card_User a
-left join [UserAddresses] b
-on a.EmpowerUserId = b.userid
+         left join [UserAddresses] b
+                   on a.EmpowerUserId = b.userid
 where [Primary] = 1
-and AddressType = 0;
+  and AddressType = 0;
 
 select
-a.*,
-b.CellNumber,
-b.DateAdded as DateCellAdded
+    a.*,
+    b.CellNumber,
+    b.DateAdded as DateCellAdded
 into #Credit_Card_Cell
 from #Credit_Card_Address a
-left join [UserCellPhones] b
-on a.EmpowerUserId = b.userid
+         left join [UserCellPhones] b
+                   on a.EmpowerUserId = b.userid
 where IsPrimary = 1;
 
 
 
 --CHA
 select a.*,
-b.CreditCardLoanDisclosureId as CardholderAgreementID, -- need to figure out why there are duplicates and eliminate them 
-row_number() over(partition by EmpowerCreditCardLoanId order by CreditCardLoanDisclosureId desc) as CHA_rnk
+       b.CreditCardLoanDisclosureId as CardholderAgreementID, -- need to figure out why there are duplicates and eliminate them 
+       row_number() over(partition by EmpowerCreditCardLoanId order by CreditCardLoanDisclosureId desc) as CHA_rnk
 into #CHA
 from #Credit_Card_Cell a
-left join creditcardloandisclosures b
-on a.EmpowerUserId = b.userid;
+         left join creditcardloandisclosures b
+                   on a.EmpowerUserId = b.userid;
 
 select a.*
 into #CHA2
 from #CHA a
 where CHA_rnk = 1;
 
-
-
-
-
 --KYC
 
-select 
-a.*,
-b.CreditCardLoanApplicationId,
-b.UserCreditModelId,
-case when b.STATUS = '4' then 'Approved' else null end as app_status,
-b.createdat as application_date
+select
+    a.*,
+    b.CreditCardLoanApplicationId,
+    b.UserCreditModelId,
+    case when b.STATUS = '4' then 'Approved' else null end as app_status,
+    b.createdat as application_date,
+    b.ModifiedAt as approval_date
 into #credit_card_applications
 from #CHA2 a
-left join  CreditCardLoanApplications b
-on a.EmpowerUserId = b.userid
+         left join  CreditCardLoanApplications b
+                    on a.EmpowerUserId = b.userid
 where b.status = 4; --approved and accepted
 
 
@@ -107,158 +102,154 @@ where b.status = 4; --approved and accepted
 
 
 
-select 
-a.*,
-b.userkycid, 
-case when b.status = 0 then 'NotInitiated'
-        when b.status = 1 then 'DocumentVerification'
-        when b.status = 2 then 'ResubmitAddress'
-        when b.status = 3 then 'ResubmitDocument'
-        when b.status = 4 then 'SubmitSecondaryDocument'
-        when b.status = 5 then 'Accept'
-        when b.status = 6 then 'Review'
-        when b.status = 7 then 'Decline'
-        when b.status = 8 then 'Reject'
-        when b.status = 9 then 'ReviewAccept'
-        when b.status = 10 then 'ReviewReject'
-        else null end as kycStatus,
-b.CreatedAt as KycDate,
-case when b.userkycid is not null then 'Socure' else null end as KYCVendor,
-row_number() over(partition by a.EmpowerCreditCardLoanId order by b.createdat desc) as socure_rank
+select
+    a.*,
+    b.userkycid,
+    case when b.status = 0 then 'NotInitiated'
+         when b.status = 1 then 'DocumentVerification'
+         when b.status = 2 then 'ResubmitAddress'
+         when b.status = 3 then 'ResubmitDocument'
+         when b.status = 4 then 'SubmitSecondaryDocument'
+         when b.status = 5 then 'Accept'
+         when b.status = 6 then 'Review'
+         when b.status = 7 then 'Decline'
+         when b.status = 8 then 'Reject'
+         when b.status = 9 then 'ReviewAccept'
+         when b.status = 10 then 'ReviewReject'
+         else null end as kycStatus,
+    b.CreatedAt as KycDate,
+    case when b.userkycid is not null then 'Socure' else null end as KYCVendor,
+    row_number() over(partition by a.EmpowerCreditCardLoanId order by b.createdat desc) as socure_rank
 into #kyc
 from #credit_card_applications a
-left join UserKycs b
-on a.EmpowerUserId = b.UserId -- we don't store the IDs that allow us to tie KYC to a specific app so this is the best we can do
-where cast(b.CreatedAt as date) <= cast(a.application_date as date) 
-and cast(b.CreatedAt as date) >= dateadd(day, -30, cast(a.application_date as date));
+         left join UserKycs b
+                   on a.EmpowerUserId = b.UserId -- we don't store the IDs that allow us to tie KYC to a specific app so this is the best we can do
+where cast(b.CreatedAt as date) <= cast(a.application_date as date)
+  and cast(b.CreatedAt as date) >= dateadd(day, -30, cast(a.application_date as date));
 
 
 
 select a.*
-into #kyc2 
+into #kyc2
 from #kyc a
 where a.socure_rank = 1;
 
 
 select a.*,
-b.userkycactionresultid,
-b.socurereferenceid as KYCIDNumber
-into #kyc3 
+       b.userkycactionresultid,
+       b.socurereferenceid as KYCIDNumber
+into #kyc3
 from #kyc2 a
-left join UserKycActionResults b
-on a.userkycid = b.userkycid;
-
-
-
+         left join UserKycActionResults b
+                   on a.userkycid = b.userkycid;
 
 SELECT
-a.*,
-b.score as PhoneRiskScore
+    a.*,
+    b.score as PhoneRiskScore
 into #phone_risk_score
 from #kyc3 a
-left join [UserKycActionResultScore] b
-on a.UserKycActionResultId = b.UserKycActionResultId
+         left join [UserKycActionResultScore] b
+                   on a.UserKycActionResultId = b.UserKycActionResultId
 where module = 'PhoneRisk';
 
 SELECT
-a.*,
-b.score as EmailRiskScore
+    a.*,
+    b.score as EmailRiskScore
 into #email_risk_score
 from #phone_risk_score a
-left join [UserKycActionResultScore] b
-on a.UserKycActionResultId = b.UserKycActionResultId
+         left join [UserKycActionResultScore] b
+                   on a.UserKycActionResultId = b.UserKycActionResultId
 where module = 'EmailRisk';
 
 
 
 ---App Credit Scores
-select 
-l.*,
-s.ficoscore as AppFicoScore
-into #app_credit_score 
+select
+    l.*,
+    s.ficoscore as AppFicoScore
+into #app_credit_score
 from #email_risk_score l
-left join UserCreditModel m
-on l.UserCreditModelId = m.UserCreditModelId
-left join UserCreditVariableAries a
-on m.UserCreditVariableId = a.UserCreditVariableId
-left join UserCreditSummary s 
-on a.UserCreditSummaryId = s.UserCreditSummaryId;
+         left join UserCreditModel m
+                   on l.UserCreditModelId = m.UserCreditModelId
+         left join UserCreditVariableAries a
+                   on m.UserCreditVariableId = a.UserCreditVariableId
+         left join UserCreditSummary s
+                   on a.UserCreditSummaryId = s.UserCreditSummaryId;
 
 
 
 --Device ID and IP Address
-select a.*,  
-b.DeviceId,
-b.createdatutc as deviceCreatedAtUtc,
-b.lastmodifiedatutc,
-b.ip,
-b.timestamputc,
-convert(varchar(10), b.timestamputc) as deviceDate
+select a.*,
+       b.DeviceId,
+       b.createdatutc as deviceCreatedAtUtc,
+       b.lastmodifiedatutc,
+       b.ip,
+       b.timestamputc,
+       convert(varchar(10), b.timestamputc) as deviceDate
 into #app_device_info
 from #app_credit_score a
-left join [UserDeviceInformationData] b
-on a.EmpowerUserId = b.userid
+         left join [UserDeviceInformationData] b
+                   on a.EmpowerUserId = b.userid
 where a.application_date >= b.timestamputc; --filtering to device information logged before the application, assuming the session logging starts at session initiation 
 
 
 
 select a.*,
-row_number() over(partition by Empowercreditcardloanid order by timestamputc desc) as timestamp_rank --taking device info logged closest to application
+       row_number() over(partition by Empowercreditcardloanid order by timestamputc desc) as timestamp_rank --taking device info logged closest to application
 into #app_device_info3
 from #app_device_info a;
 
 select a.*
-into #app_device_info4 
+into #app_device_info4
 from #app_device_info3 a
 where timestamp_rank = 1;
 
 
 select a.*,
-b.ip as applicationIP,
-b.DeviceId as ApplicationDeviceID
+       b.ip as applicationIP,
+       b.DeviceId as ApplicationDeviceID,
+       c.ExternalAccountId as LithicUserAccountId
 into #app_device
 from #app_credit_score a
-left join #app_device_info4 b
-on a.Empowercreditcardloanid = b.Empowercreditcardloanid;
-
-
-
-
-
+         left join #app_device_info4 b
+                   on a.Empowercreditcardloanid = b.Empowercreditcardloanid
+        left join CreditCardAccounts c on a.EmpowerUserId = c.UserId;
 
 ------FINAL FINWISE REPORT------
-SELECT 
-EmpowerCreditCardLoanId,
-ExternalId as PeachCreditCardId,
-EmpowerUserId,
-ProductType,
-TypeOfCard,
-AccountOriginationDate,
-UserCreatedDate,
-eSignIndicator,
-esignConsentDate,
-FirstName,
-LastName,
-SocialSecurityNumber,
-SocialSecurityNumberComputed,
-DateOfBirth,
-Email,
-AddressLine1,
-AddressLine2,
-City,
-State,
-Zip,
-CellNumber,
-DateCellAdded,
-Application_Date,
-CardholderAgreementID,
-KYCVendor,
-KYCIDNumber,
-KYCStatus, 
-PhoneRiskScore,
-EmailRiskScore,
-AppFicoScore,
-applicationIP,
-ApplicationDeviceID
-from #app_device; 
-
+SELECT
+    EmpowerCreditCardLoanId,
+    ExternalId as PeachCreditCardId,
+    EmpowerUserId,
+    LithicUserAccountId,
+    ProductType,
+    TypeOfCard,
+    Application_Date as ApplicationStartDate,
+    approval_date as ApprovalDate,
+    AccountOriginationDate,
+    UserCreatedDate,
+    eSignIndicator,
+    esignConsentDate,
+    FirstName,
+    LastName,
+    SocialSecurityNumber,
+    SocialSecurityNumberComputed,
+    DateOfBirth,
+    Email,
+    AddressLine1,
+    AddressLine2,
+    City,
+    State,
+    Zip,
+    CellNumber,
+    DateCellAdded,
+    CardholderAgreementID,
+    KYCVendor,
+    KYCIDNumber,
+    KYCStatus,
+    PhoneRiskScore,
+    EmailRiskScore,
+    AppFicoScore,
+    applicationIP,
+    ApplicationDeviceID
+from #app_device
+;
